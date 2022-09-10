@@ -291,7 +291,7 @@ function usage {
     echo "read from STDIN by providing the -x flag,"
     echo "or given in a source file."
     echo
-    echo "The output is sent to clipboard by defualt;"
+    echo "The output is sent to clipboard by default;"
     echo "using the -c flag switches it to STDOUT."
     echo "Alternatively, a file can be given with the -o flag."
     echo
