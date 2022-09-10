@@ -1,0 +1,416 @@
+#! /usr/bin/env bash
+#title       :MathTeX
+#description :Renders LaTeX source
+#author      :Kacper Sokol <dev@kcpr.me>
+#license     :new BSD
+#source      :https://github.com/So-Cool/MathTeX
+#==============================================================================#
+
+# \\documentclass[{font_size}pt]{{article}}
+# \\pagestyle{{empty}}
+# {packages}
+# {header}
+# \\begin{{document}}%
+# {open_env}%
+# {formula}%
+# $ENDENV\end{document}
+
+# \documentclass[convert={density=300,size=1080x800,outext=.png}]{standalone}
+# \documentclass[border=2pt]{standalone}
+# \usepackage{amsmath}
+# \usepackage{varwidth}
+# \begin{document}
+# \begin{varwidth}{\linewidth}
+# \[ E = mc^2 \]
+# \end{varwidth}
+# \end{document}
+
+# add text colour -> {\color{Golden} e = 2^2}
+
+# change font size:
+#   * tiny
+#   * small
+#   * normal
+#   * large
+#   * very large
+#   * huge
+
+# change font face:
+#   * latin modern
+#   * verdana
+#   * computer modern
+#   * helvetica
+
+# options:
+#   * inline
+#   * compressed
+
+# generate DVI
+# then convert to:
+#   * gif
+#   * pdf
+#   * png
+#   * svg
+
+# move the file from a temp directory to the local directory
+# copy the image (png only) to the clipboard
+
+# Generate the png image.
+function generate {
+    local BEGINENV
+    local ENDENV
+    local PREFIX
+    local TMPDIR
+    local SUFFIX
+
+    if [ "$ENVIRONMENT" = '$' ] || [ "$ENVIRONMENT" = '$$' ]; then
+        BEGINENV=$ENVIRONMENT
+        ENDENV=$ENVIRONMENT
+    else
+        BEGINENV=$(echo $ENVIRONMENT | sed -e 's/\([^\[\{]*\)/\\begin\{\1\}/')
+        ENDENV=$(echo $ENVIRONMENT | sed -e 's/\([^\[\{]*\).*/\\end\{\1\}/')
+    fi
+
+    echo "\documentclass[${SIZE}pt]{article}\pagestyle{empty}" > $TEXFILE
+
+    {
+	IFS=":"
+	
+	for P in $PACKAGES; do
+            echo $P | sed -e 's/\([^\[\{]*\)/\\usepackage\{\1\}/' >> $TEXFILE
+	done
+    }
+
+    if [ ! -z "$HEADER" ]; then
+	cat $HEADER >> $TEXFILE
+    fi
+
+    echo "\begin{document}$BEGINENV" >> $TEXFILE
+
+    if [ ! "$FORMULA" ]; then
+	cat - >> $TEXFILE
+    else
+	echo $FORMULA >> $TEXFILE
+    fi
+
+    echo "$ENDENV\end{document}" >> $TEXFILE
+
+    if [ "$LOGFILE" ]; then
+        cat $TEXFILE > $LOGFILE
+    fi
+
+    latex -halt-on-error -interaction=nonstopmode -output-directory=$TMPDIR $TEXFILE \
+        | tee -a $LOGFILE \
+        | sed -n '/^!/,/^ /p' >&2
+
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        clean
+        exit 1
+    fi
+
+    if [ ! "$PNGFILE" ]; then
+        PNGFILE="$(mktemp -p $PWD fXXX.png)"
+    fi
+
+    dvipng -bg $BACKGROUND -D $DPI -fg $FOREGROUND -o $PNGFILE -q --strict -T tight ${TEXFILE%.tex}.dvi \
+        | tee -a $LOGFILE \
+        > /dev/null
+
+    if [ $SILENT -eq 0 ]; then
+        readlink -f $PNGFILE
+    fi
+
+    clean
+}
+
+
+
+
+
+
+
+
+TMPDIR=
+TMPFILE=
+#
+EQUATION=
+OUTFILE=
+STDIN=0
+CLIPBOARD=0
+#
+SIZE=
+DPI=
+BACKGROUND=
+FOREGROUND=
+PACKAGES=
+PREAMBLE=
+LOGFILE=
+QUIET=0
+HELP=0
+SHOWVERSION=0
+#
+declare -r VERSION=0.1
+declare -r CONFIG_FILE=~/.mathtex
+
+# Check if the specified command is available
+#
+# @param $1 the command to test
+# @return true if the command is available, false otherwise
+function exists {
+    local COMMAND=$1
+    return $(command -v $COMMAND &> /dev/null)
+}
+
+# Return true if string matches regex
+#
+# @param $1 Test string
+# @param $2 Match pattern
+# @return true if string matches pattern, false otherwise
+function match {
+    local TEXT=$1
+    local PATTERN=$2
+
+    return $(echo $TEXT | egrep $PATTERN &> /dev/null)
+}
+
+# Read options from the config file
+function load_config {
+    if [ -f $CONFIG_FILE ]; then
+        while IFS="=" read -r KEY VALUE; do
+            case $KEY in
+            CLIPBOARD)
+                CLIPBOARD=$VALUE
+            ;;
+            SIZE)
+                SIZE=$(echo $VALUE | sed 's/pt//')
+            ;;
+            DPI)
+                DPI=$VALUE
+            ;;
+            BACKGROUND)
+                BACKGROUND=$VALUE
+            ;;
+            FOREGROUND)
+                FOREGROUND=$VALUE
+            ;;
+            PACKAGES)
+                PACKAGES=$VALUE
+            ;;
+            PREAMBLE)
+                PREAMBLE=$VALUE
+            ;;
+            QUIET)
+                QUIET=$VALUE
+            ;;
+            esac
+        done < $CONFIG_FILE
+    fi
+}
+
+# Parse command line arguments
+function parse_arguments {
+    while getopts e:o:s:d:b:f:p:i:l:xcqhv ARG; do
+        case $ARG in
+            e)
+                EQUATION=$OPTARG
+            ;;
+            x)
+                STDIN=1
+            ;;
+            o)
+                OUTFILE=$OPTARG
+            ;;
+            c)
+                CLIPBOARD=1
+            ;;
+            s)
+                SIZE=$OPTARG
+            ;;
+            d)
+                DPI=$OPTARG
+            ;;
+            b)
+                BACKGROUND=$OPTARG
+            ;;
+            f)
+                FOREGROUND=$OPTARG
+            ;;
+            p)
+		        PACKAGES=$OPTARG
+            ;;
+            i)
+                PREAMBLE=$OPTARG
+            ;;
+            l)
+                LOGFILE=$OPTARG
+            ;;
+            q)
+                QUIET=1
+            ;;
+            h)
+                HELP=1
+            ;;
+            v)
+                SHOWVERSION=1
+            ;;
+            ?)
+                exit 1
+        esac
+    done
+}
+
+# Print help message
+#
+# @return echoes the help message
+function usage {
+    echo "MathTeX $VERSION - Render LaTeX Mathematics"
+    echo "Copyright Kacper Sokol <dev@kcpr.me>"
+    echo
+    echo "By default MathTeX tries to read equation from stream (piped data);"
+    echo "if this fails, it attempts to load the contents of the clipboard."
+    echo "The equation can also be specified explicitly by using the -e flag,"
+    echo "read from STDIN by providing the -x flag,"
+    echo "or given in a source file."
+    echo
+    echo "The output is sent to clipboard by defualt;"
+    echo "using the -c flag switches it to STDOUT."
+    echo "Alternatively, a file can be given with the -o flag."
+    echo
+    echo "Options"
+    echo "  -e <equation>    LaTeX mathematics"
+    echo "  -x               Input from STDIN"
+    echo "  -o <file>        Output to file"
+    echo "  -c               Output to STDOUT"
+    echo
+    echo "  -s <size>        Fontsize"
+    echo "  -d <dpi>         Output resolution in dpi"
+    echo "  -b <colour>      Background colour"
+    echo "  -f <colour>      Foreground colour"
+    echo
+    echo "  -p <packages>    Colon-separated list of LaTeX package names"
+    echo "  -i <file>        Insert contents of file into preamble"
+    echo
+    echo "  -l <file>        Log filename"
+    echo "  -q               Do not print output filename (quiet mode)"
+    echo
+    echo "  -h               Print this help message"
+    echo "  -v               Display version"
+    echo
+    echo "Usage"
+    echo "  cat equation.tex | mathtex -c | imgcat          # stream to stream"
+    echo "  mathtex -b transparent                          # clipboard to clipboard"
+    echo "  mathtex -s 12 -x                                # STDIN to clipboard"
+    echo "  mathtex -p amssymb:amsmath -e \"A \triangleq B\"  # flag to clipboard"
+    echo "  mathtex -o equation.pdf -e \"E=mc^2\"             # flag to file"
+    echo "  mathtex -c equation.tex                         # file to clipboard"
+}
+
+# Print MathTeX version
+#
+# @return echoes the version
+function version {
+    echo $VERSION
+}
+
+# Remove temporary files
+function clean {
+    rm -rf $TMPDIR
+}
+
+# Entry point of the script
+function main {
+    if ! exists latex; then
+        echo "MathTeX requires LaTeX" >&2
+        exit 1
+    fi
+
+    load_config
+    parse_arguments "$@"
+
+    if [ $SHOWVERSION -eq 1 ]; then
+        version
+        exit 0
+    fi
+
+    if [ $HELP -eq 1 ]; then
+        usage
+        exit 0
+    fi
+
+    # QUIET
+
+    # LOGFILE
+
+    if [ ! -z "$PREAMBLE" ]; then
+        if [ ! -f "$PREAMBLE" ]; then
+            echo "File does not exist: $PREAMBLE" >&2
+            exit 1
+        else
+            PREAMBLE=\\input\{$PREAMBLE\}
+        fi
+    fi
+
+    IFS_BUP=$IFS
+    IFS=":"
+    local PACKAGES_
+    for p in $PACKAGES; do
+        PACKAGES_=$PACKAGES_\\usepackage{$p}
+    done
+    PACKAGES=PACKAGES_
+    IFS=$IFS_BUP
+
+    if [ -z "$FOREGROUND" ]; then
+        FOREGROUND=black
+    fi
+
+    if [ -z "$BACKGROUND" ]; then
+        BACKGROUND=white
+    fi
+
+    if [ -z "$DPI" ]; then
+        DPI=300
+    else
+        if ! match "$DPI" '^[1-9][0-9]*$'; then
+            echo "Invalid dpi" >&2
+            exit 1
+        fi
+    fi
+
+    if [ -z "$SIZE" ]; then
+        SIZE=11
+    else
+        SIZE=$(echo $SIZE | sed 's/pt//')
+
+        if ! match "$SIZE" '^[1-9][0-9]*$'; then
+            echo "Invalid fontsize" >&2
+            exit 1
+        fi
+    fi
+
+    # Get temporary workspace: directory and LaTeX file
+    TMPDIR="$(mktemp -d)"
+    TMPFILE="$(mktemp $TMPDIR/eq.tex.XXX)"
+
+    # Input priority: stream > clipboard > file / flag / STDIN
+    # Is input piped in? (use `-t 1` to check if output is piped)
+    if [ -t 0 ]; then
+        # TODO: get from file
+        # TODO: get from flag
+        # TODO: get from STDIN
+        # TODO: get from clipboard (default, log a message)
+        # TODO: FAIL
+        echo terminal
+    else
+        echo "TODO: read from pipe"
+    fi
+
+    # Output priority: clipboard > file > stream / STDOUT
+    # TODO: send to STDOUT
+    # TODO: send to file
+    # TODO: send to clipboard (default, log a message)
+
+    # generate  # TODO
+}
+
+trap "clean" SIGINT SIGTERM
+main "$@"

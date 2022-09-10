@@ -1,0 +1,13 @@
+# MacOS
+.DS_Store
+
+# LaTeX
+*.tex
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+
+# Output
+*.png
+*.pdf
