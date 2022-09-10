@@ -6,15 +6,6 @@
 #source      :https://github.com/So-Cool/MathTeX
 #==============================================================================#
 
-# \\documentclass[{font_size}pt]{{article}}
-# \\pagestyle{{empty}}
-# {packages}
-# {header}
-# \\begin{{document}}%
-# {open_env}%
-# {formula}%
-# $ENDENV\end{document}
-
 # \documentclass[convert={density=300,size=1080x800,outext=.png}]{standalone}
 # \documentclass[border=2pt]{standalone}
 # \usepackage{amsmath}
@@ -47,7 +38,6 @@
 
 # generate DVI
 # then convert to:
-#   * gif
 #   * pdf
 #   * png
 #   * svg
@@ -59,9 +49,6 @@
 function generate {
     local BEGINENV
     local ENDENV
-    local PREFIX
-    local TMPDIR
-    local SUFFIX
 
     if [ "$ENVIRONMENT" = '$' ] || [ "$ENVIRONMENT" = '$$' ]; then
         BEGINENV=$ENVIRONMENT
@@ -139,8 +126,10 @@ EQUATION=
 INFILE=
 STDIN=0
 OUTFILE=
+FORMAT=pdf
 CLIPBOARD=1
 #
+ENVIRONMENT=\$
 SIZE=
 DPI=
 BACKGROUND=
@@ -181,8 +170,14 @@ function load_config {
     if [ -f $CONFIG_FILE ]; then
         while IFS="=" read -r KEY VALUE; do
             case $KEY in
+            FORMAT)
+                FORMAT=$VALUE
+            ;;
             CLIPBOARD)
                 CLIPBOARD=$VALUE
+            ;;
+            ENVIRONMENT)
+                ENVIRONMENT=$VALUE
             ;;
             SIZE)
                 SIZE=$(echo $VALUE | sed 's/pt//')
@@ -212,7 +207,7 @@ function load_config {
 
 # Parse command line arguments
 function parse_arguments {
-    while getopts e:o:s:d:b:f:p:i:l:xcqhv ARG; do
+    while getopts e:o:t:m:s:d:b:f:p:i:l:xcqhv ARG; do
         case $ARG in
             e)
                 EQUATION=$OPTARG
@@ -223,8 +218,14 @@ function parse_arguments {
             o)
                 OUTFILE=$OPTARG
             ;;
+            t)
+                FORMAT=$OPTARG
+            ;;
             c)
                 CLIPBOARD=0
+            ;;
+            m)
+                ENVIRONMENT=$OPTARG
             ;;
             s)
                 SIZE=$OPTARG
@@ -281,24 +282,26 @@ function usage {
     echo "Alternatively, a file can be given with the -o flag."
     echo
     echo "Options"
-    echo "  -e <equation>    LaTeX mathematics"
-    echo "  -x               Input from STDIN"
-    echo "  -o <file>        Output to file"
-    echo "  -c               Output to STDOUT"
+    echo "  -e <equation>     LaTeX mathematics"
+    echo "  -x                Input from STDIN"
+    echo "  -o <file>         Output to file"
+    echo "  -t <format>       Format of the output file (pdf, png, svg)"
+    echo "  -c                Output to STDOUT"
     echo
-    echo "  -s <size>        Fontsize"
-    echo "  -d <dpi>         Output resolution in dpi"
-    echo "  -b <colour>      Background colour"
-    echo "  -f <colour>      Foreground colour"
+    echo "  -m <env>          Math environment"
+    echo "  -s <size>         Fontsize"
+    echo "  -d <dpi>          Output resolution in dpi"
+    echo "  -b <colour>       Background colour"
+    echo "  -f <colour>       Foreground colour"
     echo
-    echo "  -p <packages>    Colon-separated list of LaTeX package names"
-    echo "  -i <file>        Insert contents of file into preamble"
+    echo "  -p <packages>     Colon-separated list of LaTeX package names"
+    echo "  -i <file>         Insert contents of file into preamble"
     echo
-    echo "  -l <file>        Log filename"
-    echo "  -q               Do not print output filename (quiet mode)"
+    echo "  -l <file>         Log filename"
+    echo "  -q                Do not print output filename (quiet mode)"
     echo
-    echo "  -h               Print this help message"
-    echo "  -v               Display version"
+    echo "  -h                Print this help message"
+    echo "  -v                Display version"
     echo
     echo "Usage"
     echo "  cat equation.tex | mathtex -c | imgcat          # stream to stream"
@@ -390,6 +393,13 @@ function main {
             exit 1
         fi
     fi
+
+    # ENVIRONMENT
+
+    case $FORMAT in
+        pdf|png|svg) true ;;
+        *) echo "Availale formats are: pdf, png, svg"; exit 1 ;;
+    esac
 
     # Get temporary workspace: directory and LaTeX file
     TMPDIR="$(mktemp -d)"

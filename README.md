@@ -19,8 +19,6 @@ draws heavily from [pnglatex][pnglatex].
 
 ## TODO ##
 
-- [ ] Allow to select output format (other than pdf)
-- [ ] Allow to specify math environment (`-e displaymath`)
 - [ ] Look at one of the online generator and see what other parameters
       could be added (e.g., border, margin, padding)
 - [ ] Publish on `brew`
