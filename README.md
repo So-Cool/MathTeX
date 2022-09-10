@@ -20,7 +20,9 @@ draws heavily from [pnglatex][pnglatex].
 ## TODO ##
 
 - [ ] Look at one of the online generator and see what other parameters
-      could be added (e.g., border, margin, padding)
+      could be added (border; margin; padding; mode: inline|compressed;
+      font face: latin modern|verdana|computer modern|helvetica;
+      font size: tiny|small|normal|large|very large|huge)
 - [ ] Publish on `brew`
 
 [latexit]: https://www.chachatelier.fr/latexit/
