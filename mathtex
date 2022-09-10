@@ -132,11 +132,14 @@ function generate {
 
 TMPDIR=
 TMPFILE=
+READFROM=
+SENDTO=
 #
 EQUATION=
-OUTFILE=
+INFILE=
 STDIN=0
-CLIPBOARD=0
+OUTFILE=
+CLIPBOARD=1
 #
 SIZE=
 DPI=
@@ -221,7 +224,7 @@ function parse_arguments {
                 OUTFILE=$OPTARG
             ;;
             c)
-                CLIPBOARD=1
+                CLIPBOARD=0
             ;;
             s)
                 SIZE=$OPTARG
@@ -257,6 +260,7 @@ function parse_arguments {
                 exit 1
         esac
     done
+    INFILE=${@:$OPTIND:1}
 }
 
 # Print help message
@@ -394,20 +398,43 @@ function main {
     # Input priority: stream > clipboard > file / flag / STDIN
     # Is input piped in? (use `-t 1` to check if output is piped)
     if [ -t 0 ]; then
-        # TODO: get from file
-        # TODO: get from flag
-        # TODO: get from STDIN
-        # TODO: get from clipboard (default, log a message)
-        # TODO: FAIL
-        echo terminal
+        if [ ! -z "$INFILE" ]; then        # Get LaTeX from file
+            READFROM=file
+        elif [ ! -z "$EQUATION" ]; then    # Get LaTeX from flag
+            READFROM=flag
+        elif [ $STDIN -eq 1 ]; then        # Get LaTeX from STDIN
+            READFROM=stdin
+        else
+            EQUATION=$(pbpaste)
+            if [ ! -z "$EQUATION" ]; then  # Get LaTeX from clipboard (default)
+                if [ $QUIET -eq 0 ]; then
+                    echo "Reading LaTeX from clipboard"
+                fi
+                READFROM=clipboard
+            else                           # Failed to read in anything
+                echo "Failed to find LaTeX input" >&2
+                exit 1
+            fi
+        fi
     else
-        echo "TODO: read from pipe"
+        READFROM=pipe                      # Get LaTeX from pipe
     fi
 
     # Output priority: clipboard > file > stream / STDOUT
-    # TODO: send to STDOUT
-    # TODO: send to file
-    # TODO: send to clipboard (default, log a message)
+    if [ ! -z "$OUTFILE" ]; then         # Send to file
+        SENDTO=file
+    elif [ $CLIPBOARD -eq 0 ]; then        # Send to STDOUT
+        SENDTO=stdout
+    else                                 # Send to clipboard (default)
+        if [ $CLIPBOARD -ne 1 ]; then
+            echo error
+            exit 1
+        fi
+        if [ $QUIET -eq 0 ]; then
+            echo "Sending output to clipboard"
+        fi
+        SENDTO=clipboard
+    fi
 
     # generate  # TODO
 }
